@@ -9,6 +9,17 @@
       border: 2px solid black;
       margin: 5px;
     }
+
+    #statusBox {
+      margin-top: 15px;
+      padding: 10px;
+      border: 2px solid #333;
+      width: 50%;
+    }
+
+    label {
+      font-weight: bold;
+    }
   </style>
 </head>
 <body>
@@ -17,12 +28,18 @@
 
   <div>
     <video id="localVideo" autoplay playsinline muted></video>
-<video id="remoteVideo" autoplay playsinline></video>
-
+    <video id="remoteVideo" autoplay playsinline></video>
   </div>
 
   <button id="callBtn">Call</button>
   <button id="answerBtn">Answer</button>
+
+  <div id="statusBox">
+    <div><label>📡 WebSocket:</label> <span id="wsStatus">Connecting...</span></div>
+    <div><label>🆔 My ID:</label> <span id="myIdLabel">-</span></div>
+    <div><label>🔗 ICE State:</label> <span id="iceState">-</span></div>
+    <div><label>🌐 Peer State:</label> <span id="pcState">-</span></div>
+  </div>
 
   <script src="webrtc.js"></script>
 </body>

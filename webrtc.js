@@ -65,23 +65,15 @@ async function createPeerConnection() {
 
     peerConnection = new RTCPeerConnection({
         iceServers: [
-            { urls: "stun:stun.l.google.com:19302" },
-            {
-                urls: "turn:openrelay.metered.ca:80",
-                username: "openrelayproject",
-                credential: "openrelayproject"
-            },
-            {
-                urls: "turn:openrelay.metered.ca:443",
-                username: "openrelayproject",
-                credential: "openrelayproject"
-            },
-            {
-                urls: "turn:openrelay.metered.ca:443?transport=tcp",
-                username: "openrelayproject",
-                credential: "openrelayproject"
-            }
-        ]
+    { urls: "stun:stun.l.google.com:19302" },
+    {
+        urls: "turn:relay.metered.ca:443",
+        username: "baf9777d7b5cceb4cd9ed75c",
+        credential: "ad8c1204b768b6f5"
+    }
+],
+iceTransportPolicy: "relay"
+
     });
 
     // Avvio webcam se non è già attiva

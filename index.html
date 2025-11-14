@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Video Chat 1-to-1</title>
+  <style>
+    video {
+      width: 45%;
+      border: 2px solid black;
+      margin: 5px;
+    }
+  </style>
+</head>
+<body>
+
+  <h2>Video Chat 1-to-1</h2>
+
+  <div>
+    <video id="localVideo" autoplay playsinline></video>
+    <video id="remoteVideo" autoplay playsinline></video>
+  </div>
+
+  <button id="callBtn">Call</button>
+  <button id="answerBtn">Answer</button>
+
+  <script src="webrtc.js"></script>
+</body>
+</html>

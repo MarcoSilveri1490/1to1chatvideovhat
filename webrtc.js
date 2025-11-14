@@ -26,7 +26,7 @@ ws.onmessage = (e) => {
     switch (msg.type) {
         case "welcome":
             myId = msg.id;
-            console.log("🔑 My WebRTC ID:", myId);
+            console.log("🔑 My WebRTC XXX ID:", myId);
             break;
 
         case "offer":

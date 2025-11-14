@@ -1,44 +1,48 @@
-// webrtc_fixed.js
+// webrtc.js
 
-// 🔌 WebSocket verso il backend .NET (aggiorna l'URL quando cambia ngrok)
+// 🔌 WebSocket verso il backend .NET (aggiorna se cambi URL ngrok)
 const ws = new WebSocket("wss://unparadoxical-esteban-prediastolic.ngrok-free.dev/ws");
 
 // 🎥 Riferimenti ai video
-let localVideo = document.getElementById("localVideo");
-let remoteVideo = document.getElementById("remoteVideo");
+const localVideo  = document.getElementById("localVideo");
+const remoteVideo = document.getElementById("remoteVideo");
 
 // 🌐 Stato WebRTC
-let localStream = null;
-let peerConnection = null;
-let myId = null;        // ID assegnato dal server
-let targetId = null;    // ID dell'altro peer
+let localStream     = null;
+let peerConnection  = null;
+let myId            = null;   // ID assegnato dal server
+let targetId        = null;   // ID dell’altro peer
+const pendingIce    = [];     // ICE ricevuti prima che la PC sia pronta
 
-// 🔗 WebSocket aperto
+/* ===========================
+   🔗 WebSocket
+   =========================== */
+
 ws.onopen = () => {
-    console.log("WebSocket connected");
+    console.log("✅ WebSocket connected");
 };
 
-// 📩 Messaggi dal server
-ws.onmessage = (e) => {
+ws.onmessage = async (e) => {
     const msg = JSON.parse(e.data);
     console.log("MSG RECEIVED:", msg);
 
     switch (msg.type) {
+
         case "welcome":
             myId = msg.id;
-            console.log("🔑 My WebRTC XXX ID:", myId);
+            console.log("🔑 MyYYY WebRTC ID:", myId);
             break;
 
         case "offer":
-            handleOffer(msg);
+            await handleOffer(msg);
             break;
 
         case "answer":
-            handleAnswer(msg);
+            await handleAnswer(msg);
             break;
 
         case "ice-candidate":
-            handleIceCandidate(msg);
+            await handleIceCandidate(msg);
             break;
 
         default:
@@ -47,9 +51,12 @@ ws.onmessage = (e) => {
     }
 };
 
-// 🎥 Avvia la webcam locale
+/* ===========================
+   🎥 Webcam locale
+   =========================== */
+
 async function startLocalVideo() {
-    if (localStream) return; // già avviato
+    if (localStream) return; // già attiva
 
     localStream = await navigator.mediaDevices.getUserMedia({
         video: true,
@@ -59,40 +66,53 @@ async function startLocalVideo() {
     localVideo.srcObject = localStream;
 }
 
-// 🔧 Crea la RTCPeerConnection e aggiunge i track locali
-async function createPeerConnection() {
-    if (peerConnection) return; // già esistente
+/* ===========================
+   🔧 RTCPeerConnection helper
+   =========================== */
+
+async function ensurePeerConnection() {
+    if (peerConnection) return;
 
     peerConnection = new RTCPeerConnection({
         iceServers: [
-    { urls: "stun:stun.l.google.com:19302" },
-    {
-        urls: "turn:relay.metered.ca:443",
-        username: "baf9777d7b5cceb4cd9ed75c",
-        credential: "ad8c1204b768b6f5"
-    }
-],
-iceTransportPolicy: "relay"
-
+            { urls: "stun:stun.l.google.com:19302" },
+            {
+                urls: "turn:openrelay.metered.ca:80",
+                username: "openrelayproject",
+                credential: "openrelayproject"
+            },
+            {
+                urls: "turn:openrelay.metered.ca:443",
+                username: "openrelayproject",
+                credential: "openrelayproject"
+            },
+            {
+                urls: "turn:openrelay.metered.ca:443?transport=tcp",
+                username: "openrelayproject",
+                credential: "openrelayproject"
+            }
+        ]
     });
 
-    // Avvio webcam se non è già attiva
+    // Assicuro che la webcam sia attiva
     if (!localStream) {
         await startLocalVideo();
     }
 
-    // Aggiungo tutte le tracce locali alla connessione
+    // Aggiungo le tracce locali
     localStream.getTracks().forEach(track => {
         peerConnection.addTrack(track, localStream);
     });
 
-    // Quando arrivano tracce remote (VIDEO DELL'ALTRO UTENTE)
+    // Tracce remote (video dell’altro)
     peerConnection.ontrack = (event) => {
         console.log("🎬 Remote track received");
-        remoteVideo.srcObject = event.streams[0];
+        if (remoteVideo.srcObject !== event.streams[0]) {
+            remoteVideo.srcObject = event.streams[0];
+        }
     };
 
-    // ICE locali da inviare all’altro peer
+    // ICE locali da inviare
     peerConnection.onicecandidate = (event) => {
         if (event.candidate && targetId) {
             ws.send(JSON.stringify({
@@ -104,9 +124,26 @@ iceTransportPolicy: "relay"
         }
     };
 
+    peerConnection.onconnectionstatechange = () => {
+        console.log("📡 connectionState:", peerConnection.connectionState);
+    };
+
     console.log("🛠️ PeerConnection creata");
 }
 
+// Flush della queue ICE quando la remoteDescription è pronta
+async function flushPendingIce() {
+    if (!peerConnection || !peerConnection.remoteDescription) return;
+    while (pendingIce.length > 0) {
+        const cand = pendingIce.shift();
+        try {
+            await peerConnection.addIceCandidate(new RTCIceCandidate(cand));
+            console.log("ICE (queued) aggiunto:", cand);
+        } catch (err) {
+            console.error("Errore ICE (queued):", err);
+        }
+    }
+}
 
 /* ===========================
    📞 CALL (chi chiama)
@@ -118,11 +155,13 @@ document.getElementById("callBtn").onclick = async () => {
         return;
     }
 
-    targetId = prompt("ID dell'altro utente:");
-    if (!targetId) return;
+    const dest = prompt("ID dell'altro utente:");
+    if (!dest) return;
+
+    targetId = dest;
 
     await startLocalVideo();
-    await createPeerConnection();
+    await ensurePeerConnection();
 
     const offer = await peerConnection.createOffer();
     await peerConnection.setLocalDescription(offer);
@@ -147,9 +186,9 @@ document.getElementById("answerBtn").onclick = async () => {
         return;
     }
 
-    // Avvio solo la webcam; la peerConnection nascerà su handleOffer
+    // preparo SOLO la webcam; la PC viene creata in handleOffer
     await startLocalVideo();
-    peerConnection = null; // reset per sicurezza
+    peerConnection = null; // per sicurezza
 
     console.log("📞 Pronto a rispondere… in attesa della OFFER");
 };
@@ -162,11 +201,8 @@ async function handleOffer(msg) {
     console.log("📥 OFFER ricevuta da", msg.from);
     targetId = msg.from;
 
-    if (!localStream) {
-        await startLocalVideo();
-    }
-
-    await createPeerConnection();
+    await startLocalVideo();       // sicurezza
+    await ensurePeerConnection();  // crea la PC se non esiste
 
     const offer = msg.data;
     await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
@@ -182,6 +218,9 @@ async function handleOffer(msg) {
     }));
 
     console.log("📤 ANSWER SENT →", msg.from);
+
+    // ora che la remoteDescription è pronta, applico eventuali ICE in coda
+    await flushPendingIce();
 }
 
 async function handleAnswer(msg) {
@@ -193,6 +232,7 @@ async function handleAnswer(msg) {
 
     const answer = msg.data;
     await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+    await flushPendingIce();
 }
 
 /* ===========================
@@ -202,10 +242,10 @@ async function handleAnswer(msg) {
 async function handleIceCandidate(msg) {
     const candidate = msg.data;
 
-    // Se la peerConnection non è ancora pronta, aspetta e riprova
+    // se la PC non è pronta o non ha ancora remoteDescription, accodo
     if (!peerConnection || !peerConnection.remoteDescription) {
-        console.warn("⏳ PeerConnection non pronta, ritento ICE tra 100ms...");
-        setTimeout(() => handleIceCandidate(msg), 100);
+        console.warn("⏳ PeerConnection non pronta, accodo ICE...");
+        pendingIce.push(candidate);
         return;
     }
 

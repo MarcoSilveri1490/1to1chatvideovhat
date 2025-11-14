@@ -64,25 +64,43 @@ async function createPeerConnection() {
     if (peerConnection) return; // già esistente
 
     peerConnection = new RTCPeerConnection({
-        iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+        iceServers: [
+            { urls: "stun:stun.l.google.com:19302" },
+            {
+                urls: "turn:openrelay.metered.ca:80",
+                username: "openrelayproject",
+                credential: "openrelayproject"
+            },
+            {
+                urls: "turn:openrelay.metered.ca:443",
+                username: "openrelayproject",
+                credential: "openrelayproject"
+            },
+            {
+                urls: "turn:openrelay.metered.ca:443?transport=tcp",
+                username: "openrelayproject",
+                credential: "openrelayproject"
+            }
+        ]
     });
 
-    // Aggiungo le tracce locali
+    // Avvio webcam se non è già attiva
     if (!localStream) {
         await startLocalVideo();
     }
 
+    // Aggiungo tutte le tracce locali alla connessione
     localStream.getTracks().forEach(track => {
         peerConnection.addTrack(track, localStream);
     });
 
-    // Quando arrivano tracce remote
+    // Quando arrivano tracce remote (VIDEO DELL'ALTRO UTENTE)
     peerConnection.ontrack = (event) => {
         console.log("🎬 Remote track received");
         remoteVideo.srcObject = event.streams[0];
     };
 
-    // ICE locali da mandare all'altro peer
+    // ICE locali da inviare all’altro peer
     peerConnection.onicecandidate = (event) => {
         if (event.candidate && targetId) {
             ws.send(JSON.stringify({
@@ -93,7 +111,10 @@ async function createPeerConnection() {
             }));
         }
     };
+
+    console.log("🛠️ PeerConnection creata");
 }
+
 
 /* ===========================
    📞 CALL (chi chiama)
